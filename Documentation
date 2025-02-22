@@ -1,0 +1,159 @@
+// Documentation
+
+Hey everyone! Welcome back to the channel. Today, we're diving deep into the fine-tuning process of DeepSeek-R1-Distill-Qwen-1.5B, a powerful AI model. We'll go step by step, from setting up our environment to training and saving our fine-tuned model. Let's get started!
+
+(Background music fades out)
+
+[STEP 1: INSTALLING DEPENDENCIES]
+
+(On-screen: Terminal commands being executed)
+
+First, we need to install the required dependencies. We're using Google Colab for this, so we run the following commands to install essential libraries:
+
+(On-screen:)
+```
+!pip install datasets sympy wandb
+!pip install --no-cache-dir bitsandbytes torch
+```
+
+These libraries help with dataset handling, model training, and tracking our experiment using Weights & Biases.
+
+[STEP 2: LOADING THE MODEL AND TOKENIZER]
+
+Next, we load the DeepSeek-R1-Distill-Qwen-1.5B model and tokenizer.
+
+(On-screen: Code snippet)
+```
+from transformers import AutoTokenizer, AutoModelForCausalLM
+
+model_name = "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B"
+tokenizer = AutoTokenizer.from_pretrained(model_name)
+```
+
+This model is designed for causal language modeling and is great for fine-tuning on custom datasets.
+
+[STEP 3: PREPARING THE DATASET]
+
+Fine-tuning requires a properly formatted dataset. Here, we create a JSONL file containing question-answer pairs about Asif's expertise.
+
+(On-screen: Code snippet)
+```
+import json
+samples = [
+    {"prompt": "Question 37: What is Asif's preferred frontend state management?", "completion": "Answer 37: Asif uses Redux and Pinia for state management."},
+    {"prompt": "Question 38: How does Asif handle large-scale data processing?", "completion": "Answer 38: Asif uses Apache Spark and Dask for large-scale data processing."},
+]
+
+with open("niche_dataset.jsonl", "w", encoding="utf-8") as f:
+    for sample in samples:
+        json_line = json.dumps(sample, ensure_ascii=False)
+        f.write(json_line + "\n")
+```
+
+This dataset helps the model understand and generate responses based on Asif's knowledge and preferences.
+
+[STEP 4: TOKENIZING THE DATASET]
+
+Next, we tokenize our dataset to prepare it for training.
+
+(On-screen: Code snippet)
+```
+def tokenize_function(examples):
+    combined_texts = [f"{prompt}\n{completion}" for prompt, completion in zip(examples["prompt"], examples["completion"])]
+    tokenized = tokenizer(combined_texts, truncation=True, max_length=512, padding="max_length")
+    tokenized["labels"] = tokenized["input_ids"].copy()
+    return tokenized
+```
+
+Tokenization converts our text into numerical representations the model can process.
+
+[STEP 5: LOADING MODEL WITH QUANTIZATION]
+
+To optimize training, we use 8-bit quantization with BitsAndBytes.
+
+(On-screen: Code snippet)
+```
+from transformers import BitsAndBytesConfig
+
+quantization_config = BitsAndBytesConfig(load_in_8bit=True)
+model = AutoModelForCausalLM.from_pretrained(model_name, quantization_config=quantization_config, device_map="auto")
+```
+
+This reduces memory usage while maintaining performance.
+
+[STEP 6: APPLYING LoRA FOR EFFICIENT FINE-TUNING]
+
+We apply Low-Rank Adaptation (LoRA) to reduce computational costs while fine-tuning.
+
+(On-screen: Code snippet)
+```
+from peft import get_peft_model, LoraConfig, TaskType
+
+lora_config = LoraConfig(
+    r=8, lora_alpha=16, lora_dropout=0.05, task_type=TaskType.CAUSAL_LM
+)
+model = get_peft_model(model, lora_config)
+model.print_trainable_parameters()
+```
+
+LoRA fine-tunes only a small subset of parameters, making the process efficient.
+
+[STEP 7: SETTING TRAINING ARGUMENTS]
+
+Now, we define our training parameters using Hugging Face's Trainer API.
+
+(On-screen: Code snippet)
+```
+from transformers import TrainingArguments, Trainer
+
+training_args = TrainingArguments(
+    output_dir="./deepseek_finetuned",
+    num_train_epochs=50,
+    per_device_train_batch_size=2,
+    gradient_accumulation_steps=16,
+    fp16=True,
+    logging_steps=10,
+    save_steps=100,
+    evaluation_strategy="steps",
+    eval_steps=10,
+    learning_rate=3e-5,
+    logging_dir="./logs",
+    report_to="wandb",
+    run_name="DeepSeek_FineTuning_Experiment",
+)
+```
+
+These settings define batch size, learning rate, logging frequency, and training duration.
+
+[STEP 8: SAVING AND LOADING THE FINE-TUNED MODEL]
+
+Once training is complete, we save our model to Google Drive.
+
+(On-screen: Code snippet)
+```
+from google.colab import drive
+
+drive.mount('/content/drive')
+final_save_path = "/content/drive/My Drive/deepseek_finetuned_full"
+model.save_pretrained(final_save_path)
+tokenizer.save_pretrained(final_save_path)
+print(f"Model saved at {final_save_path}")
+```
+
+Now, we can reload our fine-tuned model anytime for inference.
+
+[STEP 9: TESTING THE MODEL]
+
+Finally, we generate responses using our fine-tuned model.
+
+(On-screen: Code snippet)
+```
+prompt = "What is Asif's approach to learning new tech?"
+generated_texts = pipe(prompt, max_length=300, num_return_sequences=1)
+generated_text = generated_texts[0]['generated_text']
+print(generated_text)
+```
+
+And that's it! We've successfully fine-tuned DeepSeek-R1-Distill-Qwen-1.5B.
+
+
